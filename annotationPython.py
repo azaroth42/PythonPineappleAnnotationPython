@@ -120,25 +120,33 @@ class Annotation(object):
 			data = protocol.fetch(data['id'])
 		self.json = data
 
-	def render_resource(self, what, cls="target", lbl="On: "):
+	def render_section(self, what, cls="target", lbl="On: "):
+		# Make a thing into a singleton
 		if type(what) != list:
 			what = [what]
-		html = '<div class="%s">%s' % (cls, lbl)
+		html = '<div class="%s">%s ' % (cls, lbl)
 		for w in what:
-			if type(w) == dict:
-				typ = w.get('type', '')
-				if typ == "Choice":
-					# pick first
-					w = w['items'][0]
-				# Resource
-
-				# Choice
-				# TextualBody
-				# SpecificResource
-			else:
-				# String URI
-				html += ' <a href="%s">%s</a>' % (w, w)
+			rhtml = self.render_resource(w)
+			html += rhtml
 		html += '</div>'
+		return html
+
+	def render_resource(self, w):
+		html = "<i>[Unable to process]</i>"
+		if type(w) == dict:
+			typ = w.get('type', '')
+			if typ == "TextualBody":
+				html = w['value']		
+			elif typ == "SpecificResource":
+				res = w['source']
+				return self.render_resource(res)
+			elif w.get('id'):
+				uri = w['id']
+				lbl = w.get('label', "[%s]" % typ)
+				html = '<a href="%s">%s</a>' % (uri, lbl)
+		else:
+			# String URI, no label or other info
+			html = '<a href="%s">%s</a>' % (w, w)
 		return html
 
 	def render(self):
@@ -148,9 +156,9 @@ class Annotation(object):
 
 		# target, body
 		tgt = self.json.get('target', {})
-		html.append(self.render_resource(tgt))
+		html.append(self.render_section(tgt))
 		body = self.json.get('body', {})
-		html.append(self.render_resource(body, cls="body", lbl=""))
+		html.append(self.render_section(body, cls="body", lbl=""))
 
 		# metadata
 		## who
@@ -166,7 +174,10 @@ class Annotation(object):
 coll = "http://localhost:8080/annos/" 
 p = Protocol(coll)
 c = Collection(p)
+n = 0
 for x in c.process():
-	print x
-	break
+	fh = file('%s.html' % n)
+	fh.write(x)
+	fh.close()
+	n += 1
 
