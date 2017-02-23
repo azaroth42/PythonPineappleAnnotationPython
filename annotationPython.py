@@ -1,6 +1,7 @@
 
 import requests
 import json
+import sys
 
 class Protocol(object):
 
@@ -46,7 +47,11 @@ class Collection(object):
 		return page
 
 	def pg_to_ui(self, url):
-		return url
+		stuff = self.protocol.cache.get(url, '')
+		if not stuff:
+			stuff = len(self.protocol.cache)
+			self.protocol.cache[url] = stuff
+		return "%s.html" % stuff
 
 	def process(self, url="", follow=True):
 
@@ -70,7 +75,7 @@ class Collection(object):
 				annoL.append(anno)
 
 			html = self.render(start, ttl, first, prev, nxt, last, modded, annoL)
-			yield html
+			yield (self.pg_to_ui(url), html)
 
 			if nxt and follow:
 				url = nxt
@@ -170,14 +175,19 @@ class Annotation(object):
 		htmlstr = ''.join(html)
 		return htmlstr
 
+def write_pages(coll):
+	p = Protocol(coll)
+	c = Collection(p)
+	for (fn, html) in c.process():
+		fh = file('data/%s' % fn, 'w')
+		fh.write(html)
+		fh.close()
 
-coll = "http://localhost:8080/annos/" 
-p = Protocol(coll)
-c = Collection(p)
-n = 0
-for x in c.process():
-	fh = file('%s.html' % n)
-	fh.write(x)
-	fh.close()
-	n += 1
+if __name__ == "__main__":
+	if len(sys.argv) > 1:
+		# e.g. http://localhost:8080/annos/
+		coll = sys.argv[1]
+		write_pages(coll)
+	else:
+		print "Usage %s <url-to-collection>" % sys.argv[0]
 

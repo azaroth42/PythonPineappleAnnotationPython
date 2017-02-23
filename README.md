@@ -9,12 +9,12 @@ Python Pineapple Annotation Python (PPAP) is a small consuming implementation in
 
 Simply point annotationPython at a conforming implementation, and it will produce the pages.
 
-`python ./annotationPython.py &lt;url&gt;`
+`python ./annotationPython.py <url>`
 
 ## Naming
 
 Seriously, what's up with the stupid name?
 
-It's from a children's youtube video (Pen Pineapple Apple Pen) that went viral in which a man in a yellow jumpsuit mimes smushing together a pen and a pineapple and then a pen and an apple.  He then smushes together both of these, proudly proclaiming "Pen Pineapple Apple Pen".  Here we have some Python, we have some Annotations ... Annotation-Python! The implementation of Python-Pineapple is currently left as an exercise for the reader.  Showing PPAP has been proven to have a calming effect on demanding three year olds.
+It's from a children's youtube video ([Pen Pineapple Apple Pen](https://www.youtube.com/watch?v=Ct6BUPvE2sM)) that went viral in which a man in a yellow jumpsuit mimes smushing together a pen and a pineapple and then a pen and an apple.  He then smushes together both of these, proudly proclaiming "Pen Pineapple Apple Pen".  Here we have some Python, we have some Annotations ... Annotation-Python! The implementation of Python-Pineapple is currently left as an exercise for the reader.  Showing PPAP has been proven to have a calming effect on demanding three year olds.
 
 It's also a hint that this is probably not meant to be used in a serious production environment. At least at the moment.
