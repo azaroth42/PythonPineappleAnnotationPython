@@ -1,140 +1,172 @@
+
 import requests
 import json
 
-
-class AnnotationProtocol(object):
+class Protocol(object):
 
 	endpoint = ""
 	cache = {}
 
-	def __init__(self, url):
+	def __init__(self, url, desc=True):
 		self.endpoint = url
+		self.full_description = desc
 		self.cache = {}
 
-	def fetch(self, url):
-		p1 = requests.get(pg)
+	def fetch(self, url=""):
+		if not url:
+			url = self.endpoint		
+		if self.full_description:
+			hv = 'return=representation;include="http://www.w3.org/ns/oa#PreferContainedDescriptions"'
+		else:
+			hv = 'return=representation;include="http://www.w3.org/ns/oa#PreferContainedIRIs"'
+
+		headers = {'Accept': "application/ld+json", 'Prefer': hv}
+		p1 = requests.get(url, headers=headers)
 		resp = p1.json()
 		return resp
 
 
-class Annotation(object):
+class Collection(object):
 
-	def __init__(self, js):
-		self.json = js
+	def __init__(self, protocol):
+		self.protocol = protocol
+		self.data = {}
 
-class Renderer(object):
+	def load(self):
+		self.data = self.protocol.fetch()
 
-	def __init__(self):
-		pass
+	def page(self, url=""):
+		if not url:
+			if not self.data:
+				self.load()
+			url = self.data['first']
+			if type(url) == dict:
+				url = url['id']
+		page = self.protocol.fetch(url)
+		return page
 
+	def pg_to_ui(self, url):
+		return url
 
-def render_resource(what, cls="target", lbl="On: "):
-	if type(what) != list:
-		what = [what]
-	html = '<div class="%s">%s' % (cls, lbl)
-	for w in what:
-		if type(w) == dict:
-			typ = w.get('type', '')
-			if typ == "Choice":
-				# pick first
-			# Resource
+	def process(self, url="", follow=True):
 
-			# Choice
-			# TextualBody
-			# SpecificResource
-			pass
-		else:
-			# String URI
-			html += ' <a href="%s">%s</a>' % (w, w)
-	html += '</div>'
-	return html
+		while True:
+			resp = self.page(url)
 
-def render_anno(anno):
-	# Check if anno is URI or description
-	if type(anno) != dict:
-		anno = fetch(anno)
-	elif not anno.get('target', {}) and anno.get('id', ''):
-		anno = fetch(anno['id'])
+			coll = resp.get('partOf', {})
+			ttl = coll.get('total', -1)
+			first = coll.get('first', '')
+			last = coll.get('last', '')
+			modded = coll.get('modified', '')
 
-	html = ['<div class="anno">']
+			start = resp.get('startIndex', -1)
+			nxt = resp.get('next', '')
+			prev = resp.get('prev', '')
 
-	# target, body
-	tgt = anno.get('target', {})
-	html.append(render_resource(tgt))
-	body = anno.get('body', {})
-	html.append(render_resource(body, cls="body", lbl=""))
+			annos = resp.get('items', [])
+			annoL = []
+			for a in annos:
+				anno = Annotation(a, self.protocol)
+				annoL.append(anno)
 
-	# metadata
-	## who
-	## when
-	## rights
-	## canonical, via
+			html = self.render(start, ttl, first, prev, nxt, last, modded, annoL)
+			yield html
 
-	html.append('</div>')
-	htmlstr = ''.join(html)
-	return htmlstr
+			if nxt and follow:
+				url = nxt
+			else:
+				raise StopIteration
 
-def pg_to_ui(pg):
-	return pg
-
-def process_page(pg, follow=True):
-
-	while pg:
-
-		resp = fetch(pg)
-
-		coll = resp.get('partOf', {})
-		ttl = coll.get('total', -1)
-		first = coll.get('first', '')
-		last = coll.get('last', '')
-		modded = coll.get('modified', '')
-
-		start = resp.get('startIndex', -1)
-		nxt = resp.get('next', '')
-		prev = resp.get('prev', '')
-
-		annos = resp.get('items', [])
-		annoL = []
-		for anno in annos:
-			# process anno into list
-			annoL.append(render_anno(anno))
-
-		# Render page to html
+	def render(self, start, ttl, first, prev, nxt, last, modded, annos):
+		# Render page to basic html
 		pgL = []
 		if start and ttl:
 			pgL.append('<div class="hdr">%s-%s of %s</div>' % (start+1, start+len(annos), ttl))
 		pgL.append('<div class="annos">')
-		pgL.extend(annoL)
+		for a in annos:
+			pgL.append(a.render())
 		pgL.append('</div>')
 		nav = []
 		if first:
-			nav.append('<a href="%s">first</a>' % pg_to_ui(first))
+			nav.append('<a href="%s">first</a>' % self.pg_to_ui(first))
 		if prev:
-			nav.append('<a href="%s">previous</a>' % pg_to_ui(prev))
+			nav.append('<a href="%s">previous</a>' % self.pg_to_ui(prev))
 		if nxt:
-			nav.append('<a href="%s">next</a>' % pg_to_ui(nxt))
+			nav.append('<a href="%s">next</a>' % self.pg_to_ui(nxt))
 		if last:
-			nav.append('<a href="%s">last</a>' % pg_to_ui(last))
+			nav.append('<a href="%s">last</a>' % self.pg_to_ui(last))
 		if nav:
 			navs = '<div class="nav">' + " | ".join(nav) + "</div>"
 			pgL.append(navs)
 
-		# yield page as a generator
 		html = '\n'.join(pgL)
-		yield html
+		return html
 
-		if nxt and follow:
-			pg = nxt
-		else:
-			pg = None
 
-def process_collection(coll):
-	c = fetch(coll)
-	first = c['first']
-	if type(first) == dict:
-		first = first['id']
-	return process_page(first)
+class Annotation(object):
 
-for x in process_collection("http://localhost:8080/annos/"):
+	json = {}
+	protocol = None
+
+	def __init__(self, data, protocol):
+		self.protocol = protocol
+
+		# Ensure that we have the full JSON description
+		if type(data) != dict:
+			# just a URI, despite asking for full description
+			data = protocol.fetch(data)
+		elif not data.get('target', {}) and data.get('id', ''):
+			# No target = not an annotation ... try and fetch id 
+			data = protocol.fetch(data['id'])
+		self.json = data
+
+	def render_resource(self, what, cls="target", lbl="On: "):
+		if type(what) != list:
+			what = [what]
+		html = '<div class="%s">%s' % (cls, lbl)
+		for w in what:
+			if type(w) == dict:
+				typ = w.get('type', '')
+				if typ == "Choice":
+					# pick first
+					w = w['items'][0]
+				# Resource
+
+				# Choice
+				# TextualBody
+				# SpecificResource
+			else:
+				# String URI
+				html += ' <a href="%s">%s</a>' % (w, w)
+		html += '</div>'
+		return html
+
+	def render(self):
+		# Render annotation to basic HTML
+
+		html = ['<div class="anno">']
+
+		# target, body
+		tgt = self.json.get('target', {})
+		html.append(self.render_resource(tgt))
+		body = self.json.get('body', {})
+		html.append(self.render_resource(body, cls="body", lbl=""))
+
+		# metadata
+		## who
+		## when
+		## rights
+		## canonical, via
+
+		html.append('</div>')
+		htmlstr = ''.join(html)
+		return htmlstr
+
+
+coll = "http://localhost:8080/annos/" 
+p = Protocol(coll)
+c = Collection(p)
+for x in c.process():
 	print x
 	break
+
